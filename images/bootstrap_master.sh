@@ -9,6 +9,26 @@ ETCD1_IP=0
 ETCD2_IP=0
 INIT_CLUSTER=0
 K8S_TLS=0
+PROXY_EP=0
+
+# proxy vars for docker
+while [ $PROXY_EP -eq 0 ]; do
+    if [ -f /tmp/proxy_ep ]; then
+        PROXY_EP=$(cat /tmp/proxy_ep)
+    else
+        echo "proxy endpoint not yet available"
+        sleep 10
+    fi
+done
+
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo cat > /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=http://$PROXY_EP:3128/" "HTTPS_PROXY=http://$PROXY_EP:3128/"
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
 
 echo "${PEER_NAME}=https://${PRIVATE_IP}:2380" > /tmp/etcd_member
 echo "${PRIVATE_IP}" > /tmp/private_ip
@@ -175,5 +195,11 @@ while [ $K8S_TLS -eq 0 ]; do
     fi
 done
 
-sudo kubeadm init --config=/tmp/kubeadm-config.yaml
+HTTP_PROXY=http://$PROXY_EP:3128 \
+    http_proxy=http://$PROXY_EP:3128 \
+    HTTPS_PROXY=http://$PROXY_EP:3128 \
+    https_proxy=http://$PROXY_EP:3128 \
+    NO_PROXY=10.0.0.0/16,192.168.0.0/16 \
+    no_proxy=10.0.0.0/16,192.168.0.0/16 \
+    sudo -E bash -c 'kubeadm init --config=/tmp/kubeadm-config.yaml'
 

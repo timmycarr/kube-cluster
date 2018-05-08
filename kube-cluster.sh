@@ -51,12 +51,22 @@ MASTER1=$(echo "$(terraform output master_ep)" | sed -n '1 p' | tr -d ,)
 MASTER2=$(echo "$(terraform output master_ep)" | sed -n '2 p')
 API_LB_EP=$(terraform output api_lb_ep)
 WORKERS=$(terraform output worker_ep)
+PROXY_EP=$(terraform output proxy_ep)
 
 # wait for infrastructure to spin up
 echo "pausing for 3 min to allow infrastructure to spin up..."
 sleep 180
 
 mkdir /tmp/kube-cluster
+
+# distribute proxy endpoint
+echo "$PROXY_EP" > /tmp/kube-cluster/proxy_ep
+trusted_send /tmp/kube-cluster/proxy_ep $MASTER0 /tmp/proxy_ep
+trusted_send /tmp/kube-cluster/proxy_ep $MASTER1 /tmp/proxy_ep
+trusted_send /tmp/kube-cluster/proxy_ep $MASTER2 /tmp/proxy_ep
+for WORKER in $WORKERS; do
+    trusted_send /tmp/kube-cluster/proxy_ep $(echo $WORKER | tr -d ,) /tmp/proxy_ep
+done
 
 # distribute K8s API endpoint
 echo "$API_LB_EP" > /tmp/kube-cluster/api_lb_ep

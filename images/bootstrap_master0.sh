@@ -6,7 +6,28 @@ API_LB_EP=0
 INIT_CLUSTER=0
 ETCD1_IP=0
 ETCD2_IP=0
+PROXY_EP=0
 
+# proxy vars for docker
+while [ $PROXY_EP -eq 0 ]; do
+    if [ -f /tmp/proxy_ep ]; then
+        PROXY_EP=$(cat /tmp/proxy_ep)
+    else
+        echo "proxy endpoint not yet available"
+        sleep 10
+    fi
+done
+
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo cat > /etc/systemd/system/docker.service.d/http-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=http://$PROXY_EP:3128/" "HTTPS_PROXY=http://$PROXY_EP:3128/"
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# etcd
 echo "${PEER_NAME}=https://${PRIVATE_IP}:2380" > /tmp/etcd_member
 echo "${PRIVATE_IP}" > /tmp/private_ip
 
@@ -155,6 +176,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable etcd
 sudo systemctl start etcd
 
+# boot k8s
 while [ $API_LB_EP -eq 0 ]; do
     if [ -f /tmp/api_lb_ep ]; then
         API_LB_EP=$(cat /tmp/api_lb_ep)
@@ -203,17 +225,27 @@ apiServerExtraArgs:
   endpoint-reconciler-type: "lease"
 EOF
 
-sudo kubeadm init --config=/tmp/kubeadm-config.yaml
+HTTP_PROXY=http://$PROXY_EP:3128 \
+    http_proxy=http://$PROXY_EP:3128 \
+    HTTPS_PROXY=http://$PROXY_EP:3128 \
+    https_proxy=http://$PROXY_EP:3128 \
+    NO_PROXY=10.0.0.0/16,192.168.0.0/16 \
+    no_proxy=10.0.0.0/16,192.168.0.0/16 \
+    sudo -E bash -c 'kubeadm init --config=/tmp/kubeadm-config.yaml'
 
+# package k8s TLS for use on other nodes
 sudo tar cvf /tmp/k8s_tls.tar.gz /etc/kubernetes/pki
 
+# put kubeconfig in convenient location
 mkdir -p /home/ubuntu/.kube
 sudo cp -i /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
 sudo chown -R ubuntu:ubuntu /home/ubuntu/.kube
 
+# start networking
 sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /etc/k8s_bootstrap/calico-rbac-kdd.yaml
 sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /etc/k8s_bootstrap/calico.yaml
 
+# capture join command for workers
 sudo kubeadm token create --description "Token created and used by kube-cluster bootstrapper" --print-join-command > /tmp/join
 sudo chown ubuntu:ubuntu /tmp/join
 
