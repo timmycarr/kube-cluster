@@ -87,12 +87,25 @@ There are five distinct roles:
     $ terraform apply
 ```
 
-9. Tear down the cluster when you're finished with it.
+9. Turn off source/dest check on workers.  See "Source/Dest Check" section below.
+
+10. Tear down the cluster when you're finished with it.
 ```
     $ terraform destroy  # from workers directory
     $ cd ../
     $ terraform destroy infra
 ```
+
+## Source/Dest Check
+
+For now the Source Dest Check on workers needs to be manually turned off for worker nodes.  There currently isn't a way to configure an autoscaling group's launch configuration to set source/dest check.
+
+The [AWS docs](https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_NAT_Instance.html#EIP_Disable_SrcDestCheck) describe how to do this in the AWS console.  You can also use the AWS command line tool with something like this:
+```
+    $ aws ec2 modify-instance-attribute --instance-id [instance_id] --source-dest-check "{\"Value\": false}"
+```
+
+Refer to [Calico docs](https://docs.projectcalico.org/v3.1/reference/public-cloud/aws) for details on why this needs to be done.
 
 ## Extend
 
