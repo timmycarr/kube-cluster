@@ -123,6 +123,8 @@ Therefore changing the Kubernetes version used is done by:
 
 2. Edit `images/bootstrap_master0_centos.sh` (line 217) and `images/bootstrap_master_centos.sh` (line 219) and change the kubernetes version in the kubeadm-config.
 
+You will also have to push the necessary image to your in-house image repo.  You can determine which images will be needed by installing a cluster of the desired version in the US and using the `docker images` command to get a list of which images you will need to push to your image repo.
+
 ## Etcd Version
 
 In order to change the version of etcd installed, set the `ETCD_VERSION` env variable at the top of the `images/install_etcd_centos.sh` file.
