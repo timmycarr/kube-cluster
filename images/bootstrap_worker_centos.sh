@@ -132,7 +132,10 @@ sudo systemctl restart kubelet
 while [ $JOINED -eq 0 ]; do
     if [ -f /tmp/join ]; then
         echo "Joining node to cluster..."
-        sudo $(cat /tmp/join)
+        HTTP_PROXY="http://$PROXY_EP:3128" \
+            HTTPS_PROXY="http://$PROXY_EP:3128" \
+            NO_PROXY="docker-pek.cnqr-cn.com,$HOSTNAME,localhost,.default.svc.cluster.local,.svc.cluster.local,.cluster.local,.cn-north-1.compute.internal,$API_LB_EP,127.0.0.1,169.254.169.254,192.168.0.0/16,10.96.0.0/12,$VPC_CIDR" \
+            sudo -E bash -c $(cat /tmp/join)
         JOINED=1
     else
         echo "Join command not yet available - sleeping..."

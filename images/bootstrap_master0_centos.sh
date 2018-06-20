@@ -223,7 +223,7 @@ EOF
 # initialize
 HTTP_PROXY="http://$PROXY_EP:3128" \
     HTTPS_PROXY="http://$PROXY_EP:3128" \
-    NO_PROXY="docker-pek.cnqr-cn.com,$HOSTNAME,localhost,$MASTER_IPS,10.96.0.1,127.0.0.1,169.254.169.254" \
+    NO_PROXY="docker-pek.cnqr-cn.com,$HOSTNAME,localhost,.default.svc.cluster.local,.svc.cluster.local,.cluster.local,.cn-north-1.compute.internal,$API_LB_EP,127.0.0.1,169.254.169.254,192.168.0.0/16,10.96.0.0/12,$VPC_CIDR" \
     sudo -E bash -c 'kubeadm init --config=/tmp/kubeadm-config.yaml'
 
 # tar up the K8s TLS assets to distribute to other masters

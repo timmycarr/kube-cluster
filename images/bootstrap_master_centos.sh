@@ -238,7 +238,10 @@ while [ $K8S_TLS -eq 0 ]; do
 done
 
 # initialize
-sudo kubeadm init --config=/tmp/kubeadm-config.yaml
+HTTP_PROXY="http://$PROXY_EP:3128" \
+    HTTPS_PROXY="http://$PROXY_EP:3128" \
+    NO_PROXY="docker-pek.cnqr-cn.com,$HOSTNAME,localhost,.default.svc.cluster.local,.svc.cluster.local,.cluster.local,.cn-north-1.compute.internal,$API_LB_EP,127.0.0.1,169.254.169.254,192.168.0.0/16,10.96.0.0/12,$VPC_CIDR" \
+    sudo -E bash -c 'kubeadm init --config=/tmp/kubeadm-config.yaml'
 
 # clean
 while [ $INSTALL_COMPLETE -eq 0 ]; do
