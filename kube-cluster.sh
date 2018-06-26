@@ -207,6 +207,7 @@ echo "k8s TLS assets distributed"
 # retreive kubeadm join command
 trusted_fetch ec2-user@$MASTER0:/tmp/join /tmp/kube-cluster/join
 JOIN_CMD=$(cat /tmp/kube-cluster/join)
+sed -i -e "s/$MASTER0_IP/$API_LB_EP/g" /tmp/kube-cluster/join
 echo "join command retreived"
 
 # grab the kubeconfig to use locally
