@@ -34,11 +34,6 @@
         },
         {
             "type": "file",
-            "source": "istio.yaml",
-            "destination": "/tmp/istio.yaml"
-        },
-        {
-            "type": "file",
             "source": "bootstrap_master0_centos.sh",
             "destination": "/tmp/bootstrap_master0.sh"
         },
