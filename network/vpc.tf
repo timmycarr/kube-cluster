@@ -11,6 +11,10 @@ variable "region" {
   default = "us-east-2"
 }
 
+variable "cluster_cidr" {
+  default = "10.0.0.0/16"
+}
+
 variable "primary_az" {
   default = "us-east-2a"
 }
@@ -20,7 +24,7 @@ variable "secondary_az" {
 }
 
 resource "aws_vpc" "vpc" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = "${var.cluster_cidr}"
   enable_dns_hostnames = true
 
   tags {
@@ -30,7 +34,7 @@ resource "aws_vpc" "vpc" {
 
 resource "aws_subnet" "primary_subnet" {
   vpc_id            = "${aws_vpc.vpc.id}"
-  cidr_block        = "10.0.0.0/18"
+  cidr_block        = "${cidrsubnet(var.cluster_cidr, 2, 0)}"
   availability_zone = "${var.primary_az}"
 
   tags {
@@ -40,7 +44,7 @@ resource "aws_subnet" "primary_subnet" {
 
 resource "aws_subnet" "secondary_subnet" {
   vpc_id            = "${aws_vpc.vpc.id}"
-  cidr_block        = "10.0.64.0/18"
+  cidr_block        = "${cidrsubnet(var.cluster_cidr, 2, 1)}"
   availability_zone = "${var.secondary_az}"
 
   tags {
