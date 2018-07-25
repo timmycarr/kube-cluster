@@ -15,15 +15,11 @@ variable "cluster_cidr" {
   default = "10.0.0.0/16"
 }
 
-variable "primary_az" {
-  default = "us-east-2a"
+variable "availability_zones" {
+  default = ["us-east-2a", "us-east-2b", "us-east-2c"]
 }
 
-variable "secondary_az" {
-  default = "us-east-2b"
-}
-
-resource "aws_vpc" "vpc" {
+resource "aws_vpc" "cluster_vpc" {
   cidr_block           = "${var.cluster_cidr}"
   enable_dns_hostnames = true
 
@@ -32,46 +28,33 @@ resource "aws_vpc" "vpc" {
   }
 }
 
-resource "aws_subnet" "primary_subnet" {
-  vpc_id            = "${aws_vpc.vpc.id}"
-  cidr_block        = "${cidrsubnet(var.cluster_cidr, 2, 0)}"
-  availability_zone = "${var.primary_az}"
+resource "aws_subnet" "cluster_subnet" {
+  count             = "${length(var.availability_zones)}"
+  vpc_id            = "${aws_vpc.cluster_vpc.id}"
+  cidr_block        = "${cidrsubnet(var.cluster_cidr, 4, count.index)}"
+  availability_zone = "${var.availability_zones[count.index]}"
 
   tags {
-    Name = "${var.cluster_name}-primary"
-  }
-}
-
-resource "aws_subnet" "secondary_subnet" {
-  vpc_id            = "${aws_vpc.vpc.id}"
-  cidr_block        = "${cidrsubnet(var.cluster_cidr, 2, 1)}"
-  availability_zone = "${var.secondary_az}"
-
-  tags {
-    Name = "${var.cluster_name}-secondary"
+    Name = "${var.cluster_name}-${count.index}"
   }
 }
 
 resource "aws_internet_gateway" "igw" {
-  vpc_id = "${aws_vpc.vpc.id}"
+  vpc_id = "${aws_vpc.cluster_vpc.id}"
 
   tags {
-    Name = "${var.cluster_name}-igw"
+    Name = "${var.cluster_name}"
   }
 }
 
-resource "aws_route_table_association" "public-primary" {
-  subnet_id      = "${aws_subnet.primary_subnet.id}"
-  route_table_id = "${aws_route_table.public.id}"
-}
-
-resource "aws_route_table_association" "public-secondary" {
-  subnet_id      = "${aws_subnet.secondary_subnet.id}"
+resource "aws_route_table_association" "cluster_rt_assoc" {
+  count          = "${length(var.availability_zones)}"
+  subnet_id      = "${aws_subnet.cluster_subnet.*.id[count.index]}"
   route_table_id = "${aws_route_table.public.id}"
 }
 
 resource "aws_route_table" "public" {
-  vpc_id = "${aws_vpc.vpc.id}"
+  vpc_id = "${aws_vpc.cluster_vpc.id}"
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -79,19 +62,19 @@ resource "aws_route_table" "public" {
   }
 
   tags {
-    Name = "${var.cluster_name}-route_table"
+    Name = "${var.cluster_name}-public"
   }
 }
 
 output "vpc_id" {
-  value = "${aws_vpc.vpc.id}"
+  value = "${aws_vpc.cluster_vpc.id}"
 }
 
-output "primary_subnet" {
-  value = "${aws_subnet.primary_subnet.id}"
+output "primary_subnet_id" {
+  value = "${aws_subnet.cluster_subnet.0.id}"
 }
 
-output "secondary_subnet" {
-  value = "${aws_subnet.secondary_subnet.id}"
+output "secondary_subnet_ids" {
+  value = "${slice(aws_subnet.cluster_subnet.*.id, 1, length(aws_subnet.cluster_subnet.*.id))}"
 }
 

@@ -1,17 +1,17 @@
 // Arbitrary name for cluster; will be added to AWS tags
 cluster_name = ""
 
+// CIDR range for the cluster's VPC, default below
+//cluster_cidr = "10.0.0.0/16"
+
 // Add the key pair name from AWS here
 key_name = ""
 
-// The AWS region you would like to use
-region = "us-east-2"
+// The AWS region you would like to use, default below
+//region = "us-east-2"
 
-// Availability zones
-// All control plane - masters and etcd - deployed to primary
-// Workers deployed across both primary and secondary
-primary_az = "us-east-2a"
-secondary_az = "us-east-2b"
+// List of availability zones to use, default below
+//availability_zones = ["us-east-2a", "us-east-2b", "us-east-2c"]
 
 // ID for target VPC
 vpc_id = ""
