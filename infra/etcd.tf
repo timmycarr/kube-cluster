@@ -49,7 +49,7 @@ resource "aws_instance" "etcd0_node" {
   count                  = 1
   ami                    = "${var.etcd0_ami}"
   instance_type          = "${var.etcd_type}"
-  subnet_id              = "${var.primary_subnet}"
+  subnet_id              = "${var.primary_subnet_id}"
   vpc_security_group_ids = ["${aws_security_group.etcd_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
@@ -73,7 +73,7 @@ resource "aws_instance" "etcd_node" {
   count                  = 2
   ami                    = "${var.etcd_ami}"
   instance_type          = "${var.etcd_type}"
-  subnet_id              = "${var.primary_subnet}"
+  subnet_id              = "${var.primary_subnet_id}"
   vpc_security_group_ids = ["${aws_security_group.etcd_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
@@ -83,7 +83,7 @@ resource "aws_instance" "etcd_node" {
   #  volume_type           = "io1"
   #  volume_size           = "${var.etcd_disk_size}"
   #  iops                  = 5000
-  #  delete_on_termination = false
+  #  delete_on_termination = "false"
   #}
 
   tags {

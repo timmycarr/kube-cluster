@@ -198,7 +198,7 @@ resource "aws_instance" "master0_node" {
   count                  = 1
   ami                    = "${var.master0_ami}"
   instance_type          = "${var.master_type}"
-  subnet_id              = "${var.primary_subnet}"
+  subnet_id              = "${var.primary_subnet_id}"
   vpc_security_group_ids = ["${aws_security_group.master_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
@@ -224,7 +224,7 @@ resource "aws_instance" "master_node" {
   count                  = 2
   ami                    = "${var.master_ami}"
   instance_type          = "${var.master_type}"
-  subnet_id              = "${var.primary_subnet}"
+  subnet_id              = "${var.primary_subnet_id}"
   vpc_security_group_ids = ["${aws_security_group.master_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
@@ -247,7 +247,7 @@ resource "aws_instance" "master_node" {
 }
 
 resource "aws_elb" "api_elb" {
-  subnets                   = ["${var.primary_subnet}"]
+  subnets                   = ["${var.primary_subnet_id}"]
   #internal                  = "true"
   internal                  = "false"
   instances                 = ["${aws_instance.master0_node.id}", "${aws_instance.master_node.*.id}"]

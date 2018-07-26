@@ -16,9 +16,11 @@ key_name = ""
 // ID for target VPC
 vpc_id = ""
 
-// ID for target subnets
-primary_subnet = ""
-secondary_subnet = ""
+// ID for subnet where etcd and master nodes will reside
+primary_subnet_id = ""
+// List of IDs for the other subnets the cluster will use
+// The worker nodes will be distributed across the primary and secondary subnets
+secondary_subnet_ids = [""]
 
 // Add the AMI IDs you build with packer here
 etcd0_ami = ""
