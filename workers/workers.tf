@@ -172,8 +172,8 @@ resource "aws_security_group" "worker_sg" {
 
   ingress {
     from_port   = 0
-    to_port     = 0
-    protocol    = "4"
+    to_port     = 65535
+    protocol    = "TCP"
     cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
   }
 
