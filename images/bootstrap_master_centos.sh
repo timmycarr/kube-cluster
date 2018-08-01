@@ -37,6 +37,7 @@ MASTER_IPS=0
 VPC_CIDR=0
 API_DNS=0
 INSTALL_COMPLETE=0
+AIA_ASSETS=0
 
 # ensure iptables are used correctly
 cat <<EOF >  /etc/sysctl.d/k8s.conf
@@ -223,8 +224,124 @@ while [ $K8S_TLS -eq 0 ]; do
     fi
 done
 
-# initialize
+# initialize cluster
 sudo kubeadm init --config=/tmp/kubeadm-config.yaml
+
+# aws-iam-authenticator assets
+while [ $AIA_ASSETS -eq 0 ]; do
+    if [ -f /tmp/aia-kubeconfig.yaml ]; then
+        AIA_ASSETS=1
+    else
+        echo "AWS IAM authenticator assets not yet available"
+        sleep 10
+    fi
+done
+
+sudo mkdir /var/aws-iam-authenticator
+sudo mkdir /etc/kubernetes/aws-iam-authenticator
+sudo mv /tmp/aia-cert.pem /var/aws-iam-authenticator/cert.pem
+sudo mv /tmp/aia-key.pem /var/aws-iam-authenticator/key.pem
+sudo mv /tmp/aia-kubeconfig.yaml /etc/kubernetes/aws-iam-authenticator/kubeconfig.yaml
+
+# replace kube-apiserver manifest to add volume mounts for aws-iam-authenticator
+sudo cat > /etc/kubernetes/manifests/kube-apiserver.yaml <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    scheduler.alpha.kubernetes.io/critical-pod: ""
+  creationTimestamp: null
+  labels:
+    component: kube-apiserver
+    tier: control-plane
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --authentication-token-webhook-config-file=/etc/kubernetes/aws-iam-authenticator/kubeconfig.yaml
+    - --admission-control=Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,ResourceQuota,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
+    - --endpoint-reconciler-type=lease
+    - --external-hostname=${HOSTNAME}
+    - --runtime-config=admissionregistration.k8s.io/v1alpha1
+    - --enable-bootstrap-token-auth=true
+    - --allow-privileged=true
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+    - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+    - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-allowed-names=front-proxy-client
+    - --service-cluster-ip-range=10.96.0.0/12
+    - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+    - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+    - --secure-port=6443
+    - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --requestheader-username-headers=X-Remote-User
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+    - --insecure-port=0
+    - --advertise-address=${PRIVATE_IP}
+    - --client-ca-file=/etc/kubernetes/pki/ca.crt
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+    - --authorization-mode=Node,RBAC
+    - --etcd-servers=https://${ETCD0_IP}:2379,https://${ETCD1_IP}:2379,https://${ETCD2_IP}:2379
+    - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.pem
+    - --etcd-certfile=/etc/kubernetes/pki/etcd/client.pem
+    - --etcd-keyfile=/etc/kubernetes/pki/etcd/client-key.pem
+    - --cloud-provider=aws
+    image: ${IMAGE_REPO}/kube-apiserver-amd64:v1.9.7
+    livenessProbe:
+      failureThreshold: 8
+      httpGet:
+        host: ${PRIVATE_IP}
+        path: /healthz
+        port: 6443
+        scheme: HTTPS
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+    name: kube-apiserver
+    resources:
+      requests:
+        cpu: 250m
+    volumeMounts:
+    - mountPath: /etc/kubernetes/pki
+      name: k8s-certs
+      readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: ca-certs
+      readOnly: true
+    - mountPath: /etc/pki
+      name: ca-certs-etc-pki
+      readOnly: true
+    - mountPath: /etc/kubernetes/aws-iam-authenticator
+      name: aws-iam-authenticator
+      readOnly: true
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/pki
+      type: DirectoryOrCreate
+    name: k8s-certs
+  - hostPath:
+      path: /etc/ssl/certs
+      type: DirectoryOrCreate
+    name: ca-certs
+  - hostPath:
+      path: /etc/pki
+      type: DirectoryOrCreate
+    name: ca-certs-etc-pki
+  - hostPath:
+      path: /etc/kubernetes/aws-iam-authenticator
+      type: DirectoryOrCreate
+    name: aws-iam-authenticator
+status: {}
+EOF
+
+# deploy aws-iam-authenticator
+sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /etc/k8s_bootstrap/aws-iam-authenticator-ds.yaml
+sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /etc/k8s_bootstrap/aws-iam-authenticator-config.yaml
 
 # clean
 while [ $INSTALL_COMPLETE -eq 0 ]; do

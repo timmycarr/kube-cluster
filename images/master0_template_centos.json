@@ -34,6 +34,11 @@
         },
         {
             "type": "file",
+            "source": "aws-iam-authenticator-ds.yaml",
+            "destination": "/tmp/aws-iam-authenticator-ds.yaml"
+        },
+        {
+            "type": "file",
             "source": "bootstrap_master0_centos.sh",
             "destination": "/tmp/bootstrap_master0.sh"
         },

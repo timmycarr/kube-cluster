@@ -3,7 +3,7 @@
 USAGE=$(cat << END
 Install the control plane for a Kubnernetes cluster using packer, terraform and kubeadm
 
-Usage: ./kube-cluster.sh [-h] </path/to/private/key> <image_repo> <api_dns>
+Usage: ./kube-cluster.sh [-h] </path/to/private/key> <image_repo> <api_dns> <role_arn>
 
 Required Arguments:
 /path/to/private/key - the local filepath to the ssh private key of the
@@ -13,6 +13,8 @@ image_repo - the image reposistory to pull images from when installing
 cluster, e.g. quay.io/my_repo
 
 api_dns - the URL that has been registered in DNS that will be used to connect to API
+
+role_arn - the AWS IAM role ARN for the cluster admin
 END
 )
 
@@ -27,15 +29,20 @@ elif [ "$2" = "" ]; then
     echo "Error: missing image repo argument"
     echo "$USAGE"
     exit 1
-# elif [ "$3" = "" ]; then
-#     echo "Error: missing api dns argument"
-#     echo "$USAGE"
-#     exit 1
+ elif [ "$3" = "" ]; then
+     echo "Error: missing api dns argument"
+     echo "$USAGE"
+     exit 1
+ elif [ "$4" = "" ]; then
+     echo "Error: missing role arn argument"
+     echo "$USAGE"
+     exit 1
 fi
 
 KEY_PATH=$1
 IMAGE_REPO=$2
 API_DNS=$3
+ROLE_ARN=$4
 
 if [ ! -f $KEY_PATH ]; then
     echo "Error: no file found at $KEY_PATH"
@@ -84,8 +91,36 @@ echo "pausing for 3 min to allow infrastructure to spin up..."
 sleep 180
 
 if [ ! -d /tmp/kube-cluster ]; then
-    mkdir /tmp/kube-cluster
+    mkdir -p /tmp/kube-cluster/aws-iam-authenticator
 fi
+
+# generate and distribute aws-iam-authenticator assets
+cat > /tmp/kube-cluster/aws-iam-authenticator/config.yaml <<EOF
+clusterID: ${API_DNS}
+defaultRole: ${IAM_ROLE_ARN}
+server:
+  mapRoles:
+  - roleARN: ${IAM_ROLE_ARN}
+    username: kubernetes-admin
+    groups:
+    - system:masters
+EOF
+(cd /tmp/kube-cluster/aws-iam-authenticator; \
+    aws-iam-authenticator -c /tmp/kube-cluster/aws-iam-authenticator/config.yaml init)
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/cert.pem $MASTER0 /tmp/aia-cert.pem
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/cert.pem $MASTER1 /tmp/aia-cert.pem
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/cert.pem $MASTER2 /tmp/aia-cert.pem
+
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/key.pem $MASTER0 /tmp/aia-key.pem
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/key.pem $MASTER1 /tmp/aia-key.pem
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/key.pem $MASTER2 /tmp/aia-key.pem
+
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/heptio-authenticator-aws.kubeconfig \
+    $MASTER0 /tmp/aia-kubeconfig.yaml
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/heptio-authenticator-aws.kubeconfig \
+    $MASTER1 /tmp/aia-kubeconfig.yaml
+trusted_send /tmp/kube-cluster/aws-iam-authenticator/heptio-authenticator-aws.kubeconfig \
+    $MASTER2 /tmp/aia-kubeconfig.yaml
 
 # distribute VPC CIDR
 echo "$VPC_CIDR" > /tmp/kube-cluster/vpc_cidr
@@ -109,6 +144,13 @@ trusted_send /tmp/kube-cluster/image_repo $MASTER0 /tmp/image_repo
 trusted_send /tmp/kube-cluster/image_repo $MASTER1 /tmp/image_repo
 trusted_send /tmp/kube-cluster/image_repo $MASTER2 /tmp/image_repo
 echo "image repo sent to masters"
+
+# distribute role ARN
+echo "$ROLE_ARN" > /tmp/kube-cluster/role_arn
+trusted_send /tmp/kube-cluster/role_arn $MASTER0 /tmp/iam_role_arn
+trusted_send /tmp/kube-cluster/role_arn $MASTER1 /tmp/iam_role_arn
+trusted_send /tmp/kube-cluster/role_arn $MASTER2 /tmp/iam_role_arn
+echo "role ARN distributed"
 
 # distribute API DNS to masters
 echo "$API_DNS" > /tmp/kube-cluster/api_dns
@@ -194,9 +236,25 @@ JOIN_CMD=$(cat /tmp/kube-cluster/join)
 echo "join command retreived"
 
 # grab the kubeconfig to use locally
-trusted_fetch centos@$MASTER0:~/.kube/config ./kubeconfig
-sed -i -e "s/$MASTER0_IP/$API_LB_EP/g" ./kubeconfig
+trusted_fetch centos@$MASTER0:~/.kube/config /tmp/kube-cluster/kubeconfig
+sed -i -e "s/$MASTER0_IP/$API_LB_EP/g" /tmp/kube-cluster/kubeconfig
 echo "kubeconfig retrieved"
+
+# modify kubeconfig to use aws-iam-authenticator
+sed -i.bak '/client-/d' /tmp/kube-cluster/kubeconfig
+cat >> /tmp/kube-cluster/kubeconfig <<EOF
+    exec:
+      apiVersion: client.authentication.k8s.io/v1alpha1
+      command: aws-iam-authenticator
+      args:
+        - "token"
+        - "-i"
+        - "${API_DNS}"
+        - "-r"
+        - "${ROLE_ARN}"
+EOF
+mv /tmp/kube-cluster/kubeconfig ./kubeconfig
+echo "kubeconfig modified"
 
 # generate user data script for worker asg
 if [ ! -d /tmp/kube-workers ]; then
