@@ -131,7 +131,6 @@ sudo sed -i 's/example\.net/'"$PEER_NAME"'/' /etc/kubernetes/pki/etcd/config.jso
     /etc/kubernetes/pki/etcd/config.json | cfssljson -bare peer)
 
 sudo tar cvf /tmp/etcd_tls.tar.gz /etc/kubernetes/pki/etcd
-#sudo chown ubuntu:ubuntu /tmp/etcd_tls.tar.gz
 
 sudo tee /etc/etcd.env << END
 PEER_NAME=$PEER_NAME

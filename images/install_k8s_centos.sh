@@ -1,7 +1,13 @@
 #!/bin/bash
 
+# This is the default Kubernetes install script
+# It assumes you can reach the kubernetes yum repo
+# If that is *not* the case see the `install_k8s_centos_upload.sh`
+# The "upload" script will require you retrieve the necessary binaries
+#  for upload when building the AMI
+
 sudo yum clean all
-#sudo yum update -y
+sudo yum update -y
 sudo yum clean all
 
 # disable SELinux
@@ -14,16 +20,6 @@ sudo sed -i '/swap/d' /etc/fstab
 sudo yum install -y docker
 sudo systemctl start docker
 sudo systemctl enable docker
-
-#cd /tmp; tar xvf /tmp/kubernetes-node-linux-amd64.tar.gz
-#sudo mv /tmp/kubernetes/node/bin/kubelet /usr/bin/
-#sudo mv /tmp/kubernetes/node/bin/kubectl /usr/bin/
-#sudo mv /tmp/kubernetes/node/bin/kubeadm /usr/bin/
-#rm /tmp/kubernetes-node-linux-amd64.tar.gz
-#rm -rf /tmp/kubernetes
-#sudo mv /tmp/kubelet.service /lib/systemd/system/
-#sudo mkdir /etc/systemd/system/kubelet.service.d/
-#sudo systemctl enable kubelet
 
 sudo tee -a /etc/yum.repos.d/kubernetes.repo <<EOF
 [kubernetes]

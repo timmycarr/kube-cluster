@@ -63,7 +63,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       containers:
-      - image: mmichaelshi/amazon-k8s-cni:1.0.0
+      - image: quay.io/lander2k2/amazon-k8s-cni:v1.1.0
       # TODO: Need to use official AWS image, but pull will be unauthorized as its only available
       # for regions that EKS is currently supported.
       # issue: https://github.com/aws/amazon-vpc-cni-k8s/issues/100
