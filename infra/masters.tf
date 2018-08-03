@@ -101,11 +101,6 @@ resource "aws_iam_role_policy" "master_policy" {
 EOF
 }
 
-resource "aws_iam_instance_profile" "master_profile" {
-  name = "${var.cluster_name}_k8s_master_profile"
-  role = "${aws_iam_role.master_role.name}"
-}
-
 resource "aws_security_group" "master_sg" {
   name   = "${var.cluster_name}_master_sg"
   vpc_id = "${var.vpc_id}"
@@ -134,38 +129,17 @@ resource "aws_security_group" "master_sg" {
     protocol    = "TCP"
     cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
   }
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "TCP"
-    #cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 179
-    to_port     = 179
-    protocol    = "TCP"
-    cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-  }
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "TCP"
-    cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   tags {
     "Name"    = "heptio-master"
     "vendor"  = "heptio"
     "cluster" = "${var.cluster_name}"
   }
+}
+
+resource "aws_iam_instance_profile" "master_profile" {
+  name = "${var.cluster_name}_k8s_master_profile"
+  role = "${aws_iam_role.master_role.name}"
 }
 
 resource "aws_security_group" "master_lb_sg" {
@@ -199,7 +173,7 @@ resource "aws_instance" "master0_node" {
   ami                    = "${var.master0_ami}"
   instance_type          = "${var.master_type}"
   subnet_id              = "${var.primary_subnet_id}"
-  vpc_security_group_ids = ["${aws_security_group.master_sg.id}"]
+  vpc_security_group_ids = ["${aws_security_group.cluster_sg.id}", "${aws_security_group.master_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
   iam_instance_profile   = "${aws_iam_instance_profile.master_profile.name}"
@@ -225,7 +199,7 @@ resource "aws_instance" "master_node" {
   ami                    = "${var.master_ami}"
   instance_type          = "${var.master_type}"
   subnet_id              = "${var.primary_subnet_id}"
-  vpc_security_group_ids = ["${aws_security_group.master_sg.id}"]
+  vpc_security_group_ids = ["${aws_security_group.cluster_sg.id}", "${aws_security_group.master_sg.id}"]
   key_name               = "${var.key_name}"
   #ebs_optimized          = "true"
   source_dest_check      = "false"

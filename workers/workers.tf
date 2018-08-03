@@ -30,6 +30,10 @@ provider "aws" {
   version = "1.14.1"
 }
 
+data "aws_security_group" "cluster_sg" {
+  name = "${var.cluster_name}_cluster_sg"
+}
+
 resource "aws_iam_role" "worker_role" {
   name = "${var.cluster_name}_worker_role"
 
@@ -129,6 +133,10 @@ resource "aws_iam_instance_profile" "worker_profile" {
   role = "${aws_iam_role.worker_role.name}"
 }
 
+data "local_file" "user_data" {
+  filename = "/tmp/kube-workers/worker-bootstrap.sh"
+}
+
 resource "aws_security_group" "worker_sg" {
   name   = "${var.cluster_name}_worker_sg"
   vpc_id = "${var.vpc_id}"
@@ -139,49 +147,17 @@ resource "aws_security_group" "worker_sg" {
     protocol    = "TCP"
     cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
   }
-
   ingress {
     from_port   = 10255
     to_port     = 10255
     protocol    = "TCP"
     cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
   }
-
   ingress {
     from_port   = 30000
     to_port     = 32767
     protocol    = "TCP"
     cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-  }
-
-  ingress {
-    from_port = 22
-    to_port   = 22
-    protocol  = "TCP"
-
-    #cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 179
-    to_port     = 179
-    protocol    = "TCP"
-    cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-  }
-
-  ingress {
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "TCP"
-    cidr_blocks = ["${data.aws_vpc.existing.cidr_block}"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags {
@@ -191,16 +167,12 @@ resource "aws_security_group" "worker_sg" {
   }
 }
 
-data "local_file" "user_data" {
-  filename = "/tmp/kube-workers/worker-bootstrap.sh"
-}
-
 resource "aws_launch_configuration" "worker" {
   name_prefix     = "heptio-worker"
   image_id        = "${var.worker_ami}"
   instance_type   = "${var.worker_type}"
   key_name        = "${var.key_name}"
-  security_groups = ["${aws_security_group.worker_sg.id}"]
+  security_groups = ["${data.aws_security_group.cluster_sg.id}", "${aws_security_group.worker_sg.id}"]
   user_data       = "${data.local_file.user_data.content}"
 
   #ebs_optimized        = "true"
@@ -249,3 +221,4 @@ resource "aws_autoscaling_group" "workers" {
     },
   ]
 }
+
